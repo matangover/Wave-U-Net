@@ -54,7 +54,7 @@ def pad_freqs(tensor, target_shape):
 
     diff = target_freqs - input_freqs
     if diff % 2 == 0:
-        pad = [(diff/2, diff/2)]
+        pad = [(diff//2, diff//2)]
     else:
         pad = [(diff//2, diff//2 + 1)] # Add extra frequency bin at the end
 

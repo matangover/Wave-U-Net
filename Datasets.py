@@ -11,7 +11,6 @@ import librosa
 import soundfile
 import os
 import fnmatch
-from exceptions import Exception
 import musdb
 
 
