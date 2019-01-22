@@ -40,7 +40,7 @@ class MultistreamCache():
             self.worker_handles.append(p)
 
         # Fill cache
-        print('----- Filling cache (Size: {}) -------'.format(self.cache_size))
+        print(('----- Filling cache (Size: {}) -------'.format(self.cache_size)))
         for k in range(self.cache_size):
             self.update_next_cache_item(self.communication_queue.get())
         print('----- Cache Filled -------')

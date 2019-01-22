@@ -2,8 +2,8 @@
 
 import numpy as np
 
-import multistreamcache
-import multistreamworkers
+from . import multistreamcache
+from . import multistreamworkers
 import Utils
 
 
@@ -63,7 +63,7 @@ class BatchGen_Single:
             cache_item = self.cache.get_cache_item(idx_cache_items[sample_num])
             pad = max(num_frames - cache_item.shape[1],0)
             if pad > 0:
-                print("WARNING: Had to pad cache item with only " + str(cache_item.shape[1]) + " frames so it has " + str(num_frames) + " frames!")
+                print(("WARNING: Had to pad cache item with only " + str(cache_item.shape[1]) + " frames so it has " + str(num_frames) + " frames!"))
                 cache_item = np.pad(cache_item, [(0,0), (pad//2, (pad - (pad//2)))], mode="constant", constant_values=0.0)
             cache_time_frames = cache_item.shape[1]
     
@@ -145,7 +145,7 @@ class BatchGen_Paired:
             extra_padding = total_padding - 2*self.options["pad_frames"]
             skip_pad = extra_padding // 2
             if skip_pad > 0:
-                print("WARNING: Had to fix input padding by " + str(skip_pad) + " samples while creating the batch")
+                print(("WARNING: Had to fix input padding by " + str(skip_pad) + " samples while creating the batch"))
             assert(cache_item[0].shape[0] > 0)
             input_mix[sample_num, :, :] = cache_item[0][start_idx_input+skip_pad:stop_idx_input+skip_pad+2*self.options["pad_frames"],:]
 

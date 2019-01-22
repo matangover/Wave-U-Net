@@ -37,10 +37,10 @@ def subtract_audio(mix_list, instrument_list):
         assert (mix_sr == inst_sr)
         new_audio = mix_audio - inst_audio
         if not (np.min(new_audio) >= -1.0 and np.max(new_audio) <= 1.0):
-            print("Warning: Audio for mix " + str(new_audio_path) + " exceeds [-1,1] float range!")
+            print(("Warning: Audio for mix " + str(new_audio_path) + " exceeds [-1,1] float range!"))
 
         librosa.output.write_wav(new_audio_path, new_audio, mix_sr) #TODO switch to compressed writing
-        print("Wrote accompaniment for song " + mix_list[i])
+        print(("Wrote accompaniment for song " + mix_list[i]))
     return new_audio_list
 
 def create_sample(db_path, instrument_node):
@@ -61,11 +61,11 @@ def get_samples_in_folder(audio_path, extension):
     audio_file_list = getAllFilesOfType(audio_path, extension)
     sample_list = list()
     for audio_file in audio_file_list:
-        print("Reading in metadata of file " + audio_file)
+        print(("Reading in metadata of file " + audio_file))
         try:
             sample = Sample.from_path(audio_file)
         except Exception:
-            print("Skipping sample at path " + audio_path)
+            print(("Skipping sample at path " + audio_path))
             continue
         sample_list.append(sample)
     assert(len(sample_list) > 0) # If we did not find any samples something must have gone wrong
@@ -96,11 +96,11 @@ def getVocalFMA(database_path, audio_path=None):
                 folder_id = track_id // 1000
                 foldername = '{:03d}'.format(folder_id)
                 audio_file = os.path.join(audio_path, "fma_full", foldername, filename)
-                print("Reading in metadata of file " + audio_file)
+                print(("Reading in metadata of file " + audio_file))
                 try:
                     sample = Sample.from_path(audio_file)
                 except Exception as e:
-                    print("Skipping sample at path " + audio_file)
+                    print(("Skipping sample at path " + audio_file))
                     print(e)
                     continue
                 sample_list.append(sample)
@@ -115,7 +115,7 @@ def write_wav_skip_existing(path, y, sr):
     if not os.path.exists(path):
         soundfile.write(path, y, sr, "PCM_16")
     else:
-        print("WARNING: Tried writing audio to " + path + ", but audio file exists already. Skipping file!")
+        print(("WARNING: Tried writing audio to " + path + ", but audio file exists already. Skipping file!"))
     return Sample.from_array(path, y, sr)
 
 def getMUSDB(database_path):
@@ -161,8 +161,8 @@ def getMUSDB(database_path):
             mix = write_wav_skip_existing(mix_path, mix_audio, rate)
 
             diff_signal = np.abs(mix_audio - bass_audio - drums_audio - other_audio - vocal_audio)
-            print("Maximum absolute deviation from source additivity constraint: " + str(np.max(diff_signal)))# Check if acc+vocals=mix
-            print("Mean absolute deviation from source additivity constraint:    " + str(np.mean(diff_signal)))
+            print(("Maximum absolute deviation from source additivity constraint: " + str(np.max(diff_signal))))# Check if acc+vocals=mix
+            print(("Mean absolute deviation from source additivity constraint:    " + str(np.mean(diff_signal))))
 
             samples.append((mix, acc, bass, drums, other, vocal)) # Collect all sources for now. Later on for SVS: [mix, acc, vocal] Multi-instrument: [mix, bass, drums, other, vocals]
 
@@ -187,11 +187,11 @@ def getFMAGenre(genre_id, database_path, audio_path=None):
                 folder_id = track_id // 1000
                 foldername = '{:03d}'.format(folder_id)
                 audio_file = os.path.join(audio_path, "fma_full", foldername, filename)
-                print("Reading in metadata of file " + audio_file)
+                print(("Reading in metadata of file " + audio_file))
                 try:
                      sample = Sample.from_path(audio_file)
                 except Exception as e:
-                    print("Skipping sample at path " + audio_file)
+                    print(("Skipping sample at path " + audio_file))
                     print(e)
                     continue
                 sample_list.append(sample)

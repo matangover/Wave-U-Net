@@ -141,7 +141,7 @@ def readAudio(audio_path, offset=0.0, duration=None, mono=True, sample_rate=None
             assert (duration is not None)
             max_start_pos = audio_duration+2*padding_duration-duration
             if (max_start_pos <= 0.0):  # If audio file is longer than duration of desired section, take all of it, will be padded later
-                print("WARNING: Audio file " + audio_path + " has length " + str(audio_duration) + " but is expected to be at least " + str(duration))
+                print(("WARNING: Audio file " + audio_path + " has length " + str(audio_duration) + " but is expected to be at least " + str(duration)))
                 return Utils.load(audio_path, sample_rate, mono)  # Return whole audio file
             start_pos = np.random.uniform(0.0,max_start_pos) # Otherwise randomly determine audio section, taking padding on both sides into account
             offset = max(start_pos - padding_duration, 0.0) # Read from this position in audio file
@@ -202,7 +202,7 @@ def readAudio(audio_path, offset=0.0, duration=None, mono=True, sample_rate=None
             num_frames = int(duration * float(audio_sr))
             max_start_pos = inf.frames - num_frames # Maximum start position when ignoring padding on both ends of the file
             if (max_start_pos <= 0):  # If audio file is longer than duration of desired section, take all of it, will be padded later
-                print("WARNING: Audio file " + audio_path + " has frames  " + str(inf.frames) + " but is expected to be at least " + str(num_frames))
+                print(("WARNING: Audio file " + audio_path + " has frames  " + str(inf.frames) + " but is expected to be at least " + str(num_frames)))
                 raise Exception("Could not read minimum required amount of audio data")
                 #return Utils.load(audio_path, sample_rate, mono)  # Return whole audio file
             start_pos = np.random.randint(0, max_start_pos)  # Otherwise randomly determine audio section, taking padding on both sides into account
@@ -278,7 +278,7 @@ def audioFileToSpectrogram(audioIn, fftWindowSize=1024, hopSize=512, offset=0.0,
                     [magnitude, phase] = np.load(file)
                     return magnitude, phase
                 except Exception as e: # In case loading did not work, remember and overwrite file later
-                    print("Could not load " + audioIn + ".npy. Loading audio again and recreating npy file!")
+                    print(("Could not load " + audioIn + ".npy. Loading audio again and recreating npy file!"))
                     writeNumpy = True
         audio, sample_rate, _ , _= readAudio(audioIn, duration=duration, offset=offset, sample_rate=expected_sr, padding_duration=padding_duration, metadata=metadata) # If no buffering, read audio file
     else: # Input is already a numpy array
@@ -337,7 +337,7 @@ def getRemainingSpectrum(mix_audio, instrument_audio_list, expected_sr, fftWindo
             assert(np.max(magnitude) < fftWindowSize)
             return magnitude, phase
         except Exception as e:
-            print("Could not load " + mix_audio)
+            print(("Could not load " + mix_audio))
 
     audio, sampleRate = Utils.load(mix_audio, sr=expected_sr)
     for instrument in instrument_audio_list:

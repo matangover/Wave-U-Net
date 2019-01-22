@@ -2,7 +2,7 @@ import tensorflow as tf
 import Utils
 from Utils import LeakyReLU
 import numpy as np
-import OutputLayer
+from . import OutputLayer
 
 class UnetAudioSeparator:
     '''

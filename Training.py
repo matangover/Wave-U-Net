@@ -10,7 +10,7 @@ from Input import batchgenerators as batchgen
 import Utils
 import Models.UnetSpectrogramSeparator
 import Models.UnetAudioSeparator
-import cPickle as pickle
+import pickle
 import Test
 import Evaluate
 
@@ -84,8 +84,8 @@ def train(model_config, experiment_id, sup_dataset, load_model=None):
 
     # Set up optimizers
     separator_vars = Utils.getTrainableVariables("separator")
-    print("Sep_Vars: " + str(Utils.getNumParams(separator_vars)))
-    print("Num of variables" + str(len(tf.global_variables())))
+    print(("Sep_Vars: " + str(Utils.getNumParams(separator_vars))))
+    print(("Num of variables" + str(len(tf.global_variables()))))
 
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     with tf.control_dependencies(update_ops):
@@ -107,9 +107,9 @@ def train(model_config, experiment_id, sup_dataset, load_model=None):
     # Load pretrained model to continue training, if we are supposed to
     if load_model != None:
         restorer = tf.train.Saver(tf.global_variables(), write_version=tf.train.SaverDef.V2)
-        print("Num of variables" + str(len(tf.global_variables())))
+        print(("Num of variables" + str(len(tf.global_variables()))))
         restorer.restore(sess, load_model)
-        print('Pre-trained model restored from file ' + load_model)
+        print(('Pre-trained model restored from file ' + load_model))
 
     saver = tf.train.Saver(tf.global_variables(), write_version=tf.train.SaverDef.V2)
 
@@ -161,19 +161,19 @@ def optimise(model_config, experiment_id, dataset):
             model_config["min_replacement_rate"] *= 2
             model_config["init_sup_sep_lr"] = 1e-5
         while worse_epochs < model_config["worse_epochs"]: # Early stopping on validation set after a few epochs
-            print("EPOCH: " + str(epoch))
+            print(("EPOCH: " + str(epoch)))
             model_path = train(sup_dataset=dataset["train"], load_model=model_path)
             curr_loss = Test.test(model_config, model_folder=str(experiment_id), audio_list=dataset["valid"], load_model=model_path)
             epoch += 1
             if curr_loss < best_loss:
                 worse_epochs = 0
-                print("Performance on validation set improved from " + str(best_loss) + " to " + str(curr_loss))
+                print(("Performance on validation set improved from " + str(best_loss) + " to " + str(curr_loss)))
                 best_model_path = model_path
                 best_loss = curr_loss
             else:
                 worse_epochs += 1
-                print("Performance on validation set worsened to " + str(curr_loss))
-    print("TRAINING FINISHED - TESTING WITH BEST MODEL " + best_model_path)
+                print(("Performance on validation set worsened to " + str(curr_loss)))
+    print(("TRAINING FINISHED - TESTING WITH BEST MODEL " + best_model_path))
     test_loss = Test.test(model_config, model_folder=str(experiment_id), audio_list=dataset["test"], load_model=best_model_path)
     return best_model_path, test_loss
 
@@ -205,7 +205,7 @@ def run(cfg):
             # Pick 25 random songs for validation from MUSDB train set (this is always the same selection each time since we fix the random seed!)
             val_idx = np.random.choice(len(dsd_train), size=25, replace=False)
             train_idx = [i for i in range(len(dsd_train)) if i not in val_idx]
-            print("Validation with MUSDB training songs no. " + str(train_idx))
+            print(("Validation with MUSDB training songs no. " + str(train_idx)))
 
             # Draw randomly from datasets
             dataset = dict()
@@ -254,7 +254,7 @@ def run(cfg):
 
     # Optimize in a supervised fashion until validation loss worsens
     sup_model_path, sup_loss = optimise(dataset=dataset)
-    print("Supervised training finished! Saved model at " + sup_model_path + ". Performance: " + str(sup_loss))
+    print(("Supervised training finished! Saved model at " + sup_model_path + ". Performance: " + str(sup_loss)))
 
     # Evaluate trained model on MUSDB
     Evaluate.produce_musdb_source_estimates(model_config, sup_model_path, model_config["musdb_path"], model_config["estimates_path"])

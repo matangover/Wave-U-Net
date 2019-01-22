@@ -23,7 +23,7 @@ def seconds_to_min_sec( secs ):
     return "%d:%02d" % (mins, secs)
 
 def get_metadata_by_loading(audio_path):
-    print("Reading metadata for file " + audio_path + " by loading file completely")
+    print(("Reading metadata for file " + audio_path + " by loading file completely"))
     audio, sr = Utils.load(audio_path, sr=None, mono=False)
     if sr == None: # Error reading file
         raise AudioReadError("Could not load file" + audio_path)

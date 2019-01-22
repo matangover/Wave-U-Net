@@ -56,7 +56,7 @@ def predict(track, model_config, load_model, results_dir=None):
     # Load model
     # Load pretrained model to continue training, if we are supposed to
     restorer = tf.train.Saver(None, write_version=tf.train.SaverDef.V2)
-    print("Num of variables" + str(len(tf.global_variables())))
+    print(("Num of variables" + str(len(tf.global_variables()))))
     restorer.restore(sess, load_model)
     print('Pre-trained model restored for song prediction')
 
@@ -156,7 +156,7 @@ def produce_musdb_source_estimates(model_config, load_model, musdb_path, output_
     :param load_model: Model checkpoint path
     :return: 
     '''
-    print("Evaluating trained model saved at " + str(load_model)+ " on MUSDB and saving source estimate audio to " + str(output_path))
+    print(("Evaluating trained model saved at " + str(load_model)+ " on MUSDB and saving source estimate audio to " + str(output_path)))
 
     mus = musdb.DB(root_dir=musdb_path)
     predict_fun = lambda track : predict(track, model_config, load_model, output_path)
@@ -172,7 +172,7 @@ def produce_source_estimates(model_config, load_model, input_path, output_path=N
     :param output_path: Output directory where estimated sources should be saved. Defaults to the same folder as the input file, if not given
     :return: Dictionary of source estimates containing the source signals as numpy arrays
     '''
-    print("Producing source estimates for input mixture file " + input_path)
+    print(("Producing source estimates for input mixture file " + input_path))
     # Prepare input audio as track object (in the MUSDB sense), so we can use the MUSDB-compatible prediction function
     audio, sr = Utils.load(input_path, sr=None, mono=False)
     # Create something that looks sufficiently like a track object to our MUSDB function
@@ -191,10 +191,10 @@ def produce_source_estimates(model_config, load_model, input_path, output_path=N
         # By default, set it to the input_path folder
         output_path = input_folder
     if not os.path.exists(output_path):
-        print("WARNING: Given output path " + output_path + " does not exist. Trying to create it...")
+        print(("WARNING: Given output path " + output_path + " does not exist. Trying to create it..."))
         os.makedirs(output_path)
     assert(os.path.exists(output_path))
-    for source_name, source_audio in sources_pred.items():
+    for source_name, source_audio in list(sources_pred.items()):
         librosa.output.write_wav(os.path.join(output_path, input_filename) + "_" + source_name + ".wav", source_audio, sr)
 
 def compute_mean_metrics(json_folder, compute_averages=True, metric="SDR"):
@@ -212,7 +212,7 @@ def compute_mean_metrics(json_folder, compute_averages=True, metric="SDR"):
     '''
     files = glob.glob(os.path.join(json_folder, "*.json"))
     inst_list = None
-    print("Found " + str(len(files)) + " JSON files to evaluate...")
+    print(("Found " + str(len(files)) + " JSON files to evaluate..."))
     for path in files:
         #print(path)
         with open(path, "r") as f:

@@ -50,7 +50,7 @@ def test(model_config, audio_list, model_folder, load_model):
     # CHECKPOINTING
     # Load pretrained model to test
     restorer = tf.train.Saver(tf.global_variables(), write_version=tf.train.SaverDef.V2)
-    print("Num of variables" + str(len(tf.global_variables())))
+    print(("Num of variables" + str(len(tf.global_variables()))))
     restorer.restore(sess, load_model)
     print('Pre-trained model restored for testing')
 
@@ -88,7 +88,7 @@ def test(model_config, audio_list, model_folder, load_model):
                 total_loss += np.sum(np.square(source_gt - source_pred))
                 total_samples += np.prod(source_gt.shape)  # Number of entries is product of number of sources and number of outputs per source
 
-        print("MSE for track " + sample[0].path + ": " + str(total_loss / float(total_samples)))
+        print(("MSE for track " + sample[0].path + ": " + str(total_loss / float(total_samples))))
     mean_mse_loss = total_loss / float(total_samples)
 
     summary = tf.Summary(value=[tf.Summary.Value(tag="test_loss", simple_value=mean_mse_loss)])
@@ -97,7 +97,7 @@ def test(model_config, audio_list, model_folder, load_model):
     writer.flush()
     writer.close()
 
-    print("Finished testing - Mean MSE: " + str(mean_mse_loss))
+    print(("Finished testing - Mean MSE: " + str(mean_mse_loss)))
 
     # Close session, clear computational graph
     sess.close()
