@@ -24,21 +24,21 @@ The Wave-U-Net also participated in the [SiSec separation campaign](https://sise
 
 GPU strongly recommended to avoid very long training times.
 
-The project is based on Python 2.7 and requires [libsndfile](http://mega-nerd.com/libsndfile/) to be installed.
+The project is based on Python 3.6 and requires [libsndfile](http://mega-nerd.com/libsndfile/) to be installed.
 
 Then, the following Python packages need to be installed:
 
 ```
 numpy==1.15.4
 sacred==0.7.3
-tensorflow-gpu==1.8.0
+tensorflow-gpu==1.12.0
 librosa==0.6.2
 soundfile==0.10.2
 lxml==4.2.1
 musdb==0.2.3
 museval==0.2.0
 google==2.0.1
-protobuf==3.4.0
+protobuf==3.6.1
 ```
 
 Alternatively to ``tensorflow-gpu`` the CPU version of TF, ``tensorflow`` can be used, if there is no GPU available.
