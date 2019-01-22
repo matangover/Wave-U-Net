@@ -7,8 +7,8 @@ from fractions import gcd
 def resample(audio, orig_sr, new_sr):
     orig_dtype = audio.dtype
     factor = gcd(orig_sr, new_sr)
-    down = orig_sr / factor
-    up = new_sr / factor
+    down = orig_sr // factor
+    up = new_sr // factor
     audio = resample_poly(audio, up, down).astype(orig_dtype)
     return audio
 

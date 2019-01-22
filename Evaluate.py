@@ -127,7 +127,7 @@ def predict_track(model_config, sess, mix_audio, mix_sr, sep_input_shape, sep_ou
     output_time_frames = sep_output_shape[1]
 
     # Pad mixture across time at beginning and end so that neural network can make prediction at the beginning and end of signal
-    pad_time_frames = (input_time_frames - output_time_frames) / 2
+    pad_time_frames = (input_time_frames - output_time_frames) // 2
     mix_audio_padded = np.pad(mix_audio, [(pad_time_frames, pad_time_frames), (0,0)], mode="constant", constant_values=0.0)
 
     # Iterate over mixture magnitudes, fetch network rpediction
