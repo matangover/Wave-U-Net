@@ -1,3 +1,4 @@
+import warnings
 import numpy as np
 from . import Input
 from Sample import Sample
@@ -152,8 +153,9 @@ class MultistreamWorker_GetSpectrogram:
                                 and sample[1].shape[1] == options["num_channels"]
                                 and sample[2].shape[1] == options["num_channels"])
                     except Exception as e:
-                        print(("WARNING: Song " + file.path + " seems to be mono, will duplicate channels to convert into stereo for training!"))
-                        print(("Channels for mix and sources" + str([sample[i].shape[1] for i in range(len(sample))])))
+                        warnings.warn(
+                            "WARNING: Song " + file.path + " seems to be mono, will duplicate channels to convert into stereo for training!\n" +
+                            "Channels for mix and sources" + str([sample[i].shape[1] for i in range(len(sample))]))
 
                     if options["augmentation"]: # Random attenuation of source signals
                         mix_audio = np.zeros(sample[0].shape, np.float32)
