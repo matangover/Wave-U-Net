@@ -132,27 +132,32 @@ def get_dataset(model_config, input_shape, output_shape, partition):
     main_folder = os.path.join(model_config["data_path"], dataset_name)
 
     if not os.path.exists(main_folder):
-        # We have to prepare the MUSDB dataset
-        print("Preparing MUSDB dataset! This could take a while...")
-        dsd_train, dsd_test = getMUSDB(model_config["musdb_path"])  # List of (mix, acc, bass, drums, other, vocal) tuples
+        if "Use MUSDB dataset" == True:
+            # We have to prepare the MUSDB dataset
+            print("Preparing MUSDB dataset! This could take a while...")
+            dsd_train, dsd_test = getMUSDB(model_config["musdb_path"])  # List of (mix, acc, bass, drums, other, vocal) tuples
 
-        # Pick 25 random songs for validation from MUSDB train set (this is always the same selection each time since we fix the random seed!)
-        val_idx = np.random.choice(len(dsd_train), size=25, replace=False)
-        train_idx = [i for i in range(len(dsd_train)) if i not in val_idx]
-        print("Validation with MUSDB training songs no. " + str(train_idx))
+            # Pick 25 random songs for validation from MUSDB train set (this is always the same selection each time since we fix the random seed!)
+            val_idx = np.random.choice(len(dsd_train), size=25, replace=False)
+            train_idx = [i for i in range(len(dsd_train)) if i not in val_idx]
+            print("Validation with MUSDB training songs no. " + str(train_idx))
 
-        # Draw randomly from datasets
-        dataset = dict()
-        dataset["train"] = [dsd_train[i] for i in train_idx]
-        dataset["valid"] = [dsd_train[i] for i in val_idx]
-        dataset["test"] = dsd_test
+            # Draw randomly from datasets
+            dataset = dict()
+            dataset["train"] = [dsd_train[i] for i in train_idx]
+            dataset["valid"] = [dsd_train[i] for i in val_idx]
+            dataset["test"] = dsd_test
 
         # MUSDB base dataset loaded now, now create task-specific dataset based on that
         if model_config["task"] == "voice":
             # Prepare CCMixter
-            print("Preparing CCMixter dataset!")
+            print("Reading CCMixter dataset!")
             ccm = getCCMixter("CCMixter.xml")
-            dataset["train"].extend(ccm)
+            dataset = {
+                "train": ccm[:13],
+                "valid": ccm[13:15],
+                "test": ccm[15:20]
+            }
 
         # Convert audio files into TFRecords now
 
