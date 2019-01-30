@@ -107,7 +107,7 @@ def train(model_config, experiment_id, sup_dataset, load_model=None):
     # Load pretrained model to continue training, if we are supposed to
     if load_model != None:
         restorer = tf.train.Saver(tf.global_variables(), write_version=tf.train.SaverDef.V2)
-        print(("Num of variables" + str(len(tf.global_variables()))))
+        print(("Num of variables: " + str(len(tf.global_variables()))))
         restorer.restore(sess, load_model)
         print(('Pre-trained model restored from file ' + load_model))
 
