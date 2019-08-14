@@ -2,3 +2,4 @@
 checkpoints
 output
 logs
+.mypy_cache
