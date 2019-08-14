@@ -6,14 +6,14 @@ import os
 import json
 import glob
 
-import Models.UnetAudioSeparator
-import Models.UnetSpectrogramSeparator
-
 import musdb
 import museval
 import Utils
+import Datasets
 
-def predict(track, model_config, load_model, results_dir=None):
+from typing import Optional
+
+def predict(track, model_config, load_model, results_dir=None, score_filenames=None):
     '''
     Function in accordance with MUSB evaluation API. Takes MUSDB track object and computes corresponding source estimates, as well as calls evlauation script.
     Model has to be saved beforehand into a pickle file containing model configuration dictionary and checkpoint path!
@@ -24,12 +24,7 @@ def predict(track, model_config, load_model, results_dir=None):
 
     # Determine input and output shapes, if we use U-net as separator
     disc_input_shape = [model_config["batch_size"], model_config["num_frames"], 0]  # Shape of discriminator input
-    if model_config["network"] == "unet":
-        separator_class = Models.UnetAudioSeparator.UnetAudioSeparator(model_config)
-    elif model_config["network"] == "unet_spectrogram":
-        separator_class = Models.UnetSpectrogramSeparator.UnetSpectrogramSeparator(model_config)
-    else:
-        raise NotImplementedError
+    separator_class = Utils.create_separator(model_config)
 
     sep_input_shape, sep_output_shape = separator_class.get_padding(np.array(disc_input_shape))
     separator_func = separator_class.get_output
@@ -39,12 +34,15 @@ def predict(track, model_config, load_model, results_dir=None):
     sep_output_shape[0] = 1
 
     mix_ph = tf.placeholder(tf.float32, sep_input_shape)
+    score_placeholders = {
+        source_name + '_score': tf.placeholder(tf.uint8, sep_input_shape, source_name + '_score')
+        for source_name in model_config["separator_source_names"]}
 
     print("Testing...")
 
     # BUILD MODELS
     # Separator
-    separator_sources = separator_func(mix_ph, training=False, return_spectrogram=False, reuse=False)
+    separator_sources = separator_func(mix_ph, training=False, return_spectrogram=False, reuse=False, scores=score_placeholders)
 
     # Start session and queue input threads
     sess = tf.Session()
@@ -58,10 +56,10 @@ def predict(track, model_config, load_model, results_dir=None):
     print('Pre-trained model restored for song prediction')
 
     mix_audio, orig_sr, mix_channels = track.audio, track.rate, track.audio.shape[1] # Audio has (n_samples, n_channels) shape
-    separator_preds = predict_track(model_config, sess, mix_audio, orig_sr, sep_input_shape, sep_output_shape, separator_sources, mix_ph)
+    separator_preds = predict_track(model_config, sess, mix_audio, orig_sr, sep_input_shape, sep_output_shape, separator_sources, mix_ph, score_placeholders, score_filenames)
 
     # Upsample predicted source audio and convert to stereo. Make sure to resample back to the exact number of samples in the original input (with fractional orig_sr/new_sr this causes issues otherwise)
-    pred_audio = {name : Utils.resample(separator_preds[name], model_config["expected_sr"], orig_sr)[:mix_audio.shape[0],:] for name in model_config["source_names"]}
+    pred_audio = {name : Utils.resample(separator_preds[name], model_config["expected_sr"], orig_sr)[:mix_audio.shape[0],:] for name in model_config["separator_source_names"]}
 
     if model_config["mono_downmix"] and mix_channels > 1: # Convert to multichannel if mixture input was multichannel by duplicating mono estimate
         pred_audio = {name : np.tile(pred_audio[name], [1, mix_channels]) for name in list(pred_audio.keys())}
@@ -79,7 +77,7 @@ def predict(track, model_config, load_model, results_dir=None):
 
     return pred_audio
 
-def predict_track(model_config, sess, mix_audio, mix_sr, sep_input_shape, sep_output_shape, separator_sources, mix_context):
+def predict_track(model_config, sess, mix_audio, mix_sr, sep_input_shape, sep_output_shape, separator_sources, mix_context, score_placeholders, score_filenames):
     '''
     Outputs source estimates for a given input mixture signal mix_audio [n_frames, n_channels] and a given Tensorflow session and placeholders belonging to the prediction network.
     It iterates through the track, collecting segment-wise predictions to form the output.
@@ -112,7 +110,7 @@ def predict_track(model_config, sess, mix_audio, mix_sr, sep_input_shape, sep_ou
 
     # Preallocate source predictions (same shape as input mixture)
     source_time_frames = mix_audio.shape[0]
-    source_preds = {name : np.zeros(mix_audio.shape, np.float32) for name in model_config["source_names"]}
+    source_preds = {name : np.zeros(mix_audio.shape, np.float32) for name in model_config["separator_source_names"]}
 
     input_time_frames = sep_input_shape[1]
     output_time_frames = sep_output_shape[1]
@@ -121,6 +119,8 @@ def predict_track(model_config, sess, mix_audio, mix_sr, sep_input_shape, sep_ou
     pad_time_frames = (input_time_frames - output_time_frames) // 2
     mix_audio_padded = np.pad(mix_audio, [(pad_time_frames, pad_time_frames), (0,0)], mode="constant", constant_values=0.0)
 
+    if score_filenames:
+        scores = read_scores(model_config, source_time_frames, score_filenames, pad_time_frames)
     # Iterate over mixture magnitudes, fetch network rpediction
     for source_pos in range(0, source_time_frames, output_time_frames):
         # If this output patch would reach over the end of the source spectrogram, set it so we predict the very end of the output, then stop
@@ -131,11 +131,16 @@ def predict_track(model_config, sess, mix_audio, mix_sr, sep_input_shape, sep_ou
         mix_part = mix_audio_padded[source_pos:source_pos + input_time_frames,:]
         mix_part = np.expand_dims(mix_part, axis=0)
 
-        source_parts = sess.run(separator_sources, feed_dict={mix_context: mix_part})
+        feed_dict = {mix_context: mix_part}
+        if score_filenames:
+            for source, score in scores.items():
+                score_part = scores[source][source_pos:source_pos + input_time_frames]
+                feed_dict[score_placeholders[source + '_score']] = score_part[np.newaxis, :, np.newaxis]
+        source_parts = sess.run(separator_sources, feed_dict=feed_dict)
 
         # Save predictions
         # source_shape = [1, freq_bins, acc_mag_part.shape[2], num_chan]
-        for name in model_config["source_names"]:
+        for name in model_config["separator_source_names"]:
             source_preds[name][source_pos:source_pos + output_time_frames] = source_parts[name][0, :, :]
 
     # In case we had to pad the mixture at the end, remove those samples from source prediction now
@@ -158,7 +163,7 @@ def produce_musdb_source_estimates(model_config, load_model, musdb_path, output_
     assert(mus.test(predict_fun))
     mus.run(predict_fun, estimates_dir=output_path, subsets=subsets)
 
-def produce_source_estimates(model_config, load_model, input_path, output_path=None):
+def produce_source_estimates(model_config, load_model, input_path, output_path=None, score_filenames=None):
     '''
     For a given input mixture file, saves source predictions made by a given model.
     :param model_config: Model configuration
@@ -177,8 +182,7 @@ def produce_source_estimates(model_config, load_model, input_path, output_path=N
             self.rate = rate
             self.shape = shape
     track = TrackLike(audio, sr, audio.shape)
-
-    sources_pred = predict(track, model_config, load_model) # Input track to prediction function, get source estimates
+    sources_pred = predict(track, model_config, load_model, score_filenames=score_filenames) # Input track to prediction function, get source estimates
 
     # Save source estimates as audio files into output dictionary
     input_folder, input_filename = os.path.split(input_path)
@@ -206,7 +210,7 @@ def compute_mean_metrics(json_folder, compute_averages=True, metric="SDR"):
     If it is false, also returns this list, but each element is now a numpy vector containing all segment-wise performance values
     '''
     files = glob.glob(os.path.join(json_folder, "*.json"))
-    inst_list = None
+    inst_list = None # type: Optional[list]
     print("Found " + str(len(files)) + " JSON files to evaluate...")
     for path in files:
         #print(path)
@@ -224,9 +228,21 @@ def compute_mean_metrics(json_folder, compute_averages=True, metric="SDR"):
             inst_list[i].extend([np.float(f['metrics'][metric]) for f in js["targets"][i]["frames"]])
 
     #return np.array(sdr_acc), np.array(sdr_voc)
+    assert inst_list is not None
     inst_list = [np.array(perf) for perf in inst_list]
 
     if compute_averages:
         return [(np.nanmedian(perf), np.nanmedian(np.abs(perf - np.nanmedian(perf))), np.nanmean(perf), np.nanstd(perf)) for perf in inst_list]
     else:
         return inst_list
+
+def read_scores(model_config, audio_length, score_filenames, pad_time_frames):
+    scores = {
+        source: Datasets.read_score(score_filenames[source], audio_length, model_config['expected_sr'])
+        for source in model_config['separator_source_names']
+    }
+    padded_scores = {
+        source: np.pad(score, [(pad_time_frames, pad_time_frames)], mode="constant", constant_values=0.0)
+        for source, score in scores.items()
+    }
+    return padded_scores

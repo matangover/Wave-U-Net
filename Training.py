@@ -6,13 +6,10 @@ import os
 
 import Datasets
 import Utils
-import Models.UnetSpectrogramSeparator
-import Models.UnetAudioSeparator
 import Test
-import Evaluate
 
 import functools
-from tensorflow.contrib.signal.python.ops import window_ops
+from tensorflow.contrib.signal import hann_window
 
 ex = Experiment('Waveunet Training', ingredients=[config_ingredient])
 
@@ -25,12 +22,7 @@ def set_seed():
 def train(model_config, experiment_id, load_model=None):
     # Determine input and output shapes
     disc_input_shape = [model_config["batch_size"], model_config["num_frames"], 0]  # Shape of input
-    if model_config["network"] == "unet":
-        separator_class = Models.UnetAudioSeparator.UnetAudioSeparator(model_config)
-    elif model_config["network"] == "unet_spectrogram":
-        separator_class = Models.UnetSpectrogramSeparator.UnetSpectrogramSeparator(model_config)
-    else:
-        raise NotImplementedError
+    separator_class = Utils.create_separator(model_config)
 
     sep_input_shape, sep_output_shape = separator_class.get_padding(np.array(disc_input_shape))
     separator_func = separator_class.get_output
@@ -44,16 +36,17 @@ def train(model_config, experiment_id, load_model=None):
 
     # BUILD MODELS
     # Separator
-    separator_sources = separator_func(batch["mix"], True, not model_config["raw_audio_loss"], reuse=False) # Sources are output in order [acc, voice] for voice separation, [bass, drums, other, vocals] for multi-instrument separation
+    scores = {name: value for name, value in batch.items() if name.endswith('_score')}
+    separator_sources = separator_func(batch["mix"], True, not model_config["raw_audio_loss"], reuse=False, scores=scores)
 
     # Supervised objective: MSE for raw audio, MAE for magnitude space (Jansson U-Net)
-    separator_loss = 0
-    for key in model_config["source_names"]:
+    separator_loss = 0.0
+    for key in model_config["separator_source_names"]:
         real_source = batch[key]
         sep_source = separator_sources[key]
 
         if model_config["network"] == "unet_spectrogram" and not model_config["raw_audio_loss"]:
-            window = functools.partial(window_ops.hann_window, periodic=True)
+            window = functools.partial(hann_window, periodic=True)
             stfts = tf.contrib.signal.stft(tf.squeeze(real_source, 2), frame_length=1024, frame_step=768,
                                            fft_length=1024, window_fn=window)
             real_mag = tf.abs(stfts)
@@ -124,9 +117,10 @@ def train(model_config, experiment_id, load_model=None):
 def optimise(model_config, experiment_id):
     epoch = 0
     best_loss = 10000
-    model_path = None
+    model_path = model_config["initial_model_path"]
     best_model_path = None
-    for i in range(2):
+    start_iteration = 1 if model_config["fine_tuning_only"] else 0
+    for i in range(start_iteration, 2):
         worse_epochs = 0
         if i==1:
             print("Finished first round of training, now entering fine-tuning stage")
@@ -145,7 +139,13 @@ def optimise(model_config, experiment_id):
             else:
                 worse_epochs += 1
                 print("Performance on validation set worsened to " + str(curr_loss))
-    print("TRAINING FINISHED - TESTING WITH BEST MODEL " + best_model_path)
+            print("Worse epochs: " + str(worse_epochs))
+
+            if model_config["max_epochs"] is not None and epoch >= model_config["max_epochs"]:
+                print("Max number of epochs reached: %s" % epoch)
+                break
+
+    print("TRAINING FINISHED - TESTING WITH BEST MODEL %s" % best_model_path)
     test_loss = Test.test(model_config, model_folder=str(experiment_id), partition="test", load_model=best_model_path)
     return best_model_path, test_loss
 
@@ -161,6 +161,3 @@ def run(cfg):
     # Optimize in a supervised fashion until validation loss worsens
     sup_model_path, sup_loss = optimise()
     print("Supervised training finished! Saved model at " + sup_model_path + ". Performance: " + str(sup_loss))
-
-    # Evaluate trained model on MUSDB
-    Evaluate.produce_musdb_source_estimates(model_config, sup_model_path, model_config["musdb_path"], model_config["estimates_path"])

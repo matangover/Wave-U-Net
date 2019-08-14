@@ -1,5 +1,7 @@
 import numpy as np
 from sacred import Ingredient
+import os
+from typing import cast
 
 config_ingredient = Ingredient("cfg")
 
@@ -7,8 +9,7 @@ config_ingredient = Ingredient("cfg")
 def cfg():
     # Base configuration
     model_config = {"musdb_path" : "/mnt/windaten/Datasets/MUSDB18/", # SET MUSDB PATH HERE, AND SET CCMIXTER PATH IN CCMixter.xml
-                    "estimates_path" : "/mnt/windaten/Source_Estimates", # SET THIS PATH TO WHERE YOU WANT SOURCE ESTIMATES PRODUCED BY THE TRAINED MODEL TO BE SAVED. Folder itself must exist!
-                    "data_path" : "data", # Set this to where the preprocessed dataset should be saved
+                    "estimates_path" : "source_estimates", # SET THIS PATH TO WHERE YOU WANT SOURCE ESTIMATES PRODUCED BY THE TRAINED MODEL TO BE SAVED. Folder itself must exist!
 
                     "model_base_dir" : "checkpoints", # Base folder for model checkpoints
                     "log_dir" : "logs", # Base folder for logs files
@@ -24,6 +25,7 @@ def cfg():
                     'input_filter_size' : 15, # For Wave-U-Net: Filter size of first convolution in first downsampling block
                     'output_filter_size': 1, # For Wave-U-Net: Filter size of first convolution in first downsampling block
                     'num_initial_filters' : 24, # Number of filters for convolution in first layer of network
+                    'additional_filters_per_layer' : 24,
                     "num_frames": 16384, # DESIRED number of time frames in the output waveform per samples (could be changed when using valid padding)
                     'expected_sr': 22050,  # Downsample all audio input to this sampling rate
                     'mono_downmix': True,  # Whether to downsample the audio input
@@ -31,23 +33,52 @@ def cfg():
                     'output_activation' : 'tanh', # Activation function for output layer. "tanh" or "linear". Linear output involves clipping to [-1,1] at test time, and might be more stable than tanh
                     'context' : False, # Type of padding for convolutions in separator. If False, feature maps double or half in dimensions after each convolution, and convolutions are padded with zeros ("same" padding). If True, convolution is only performed on the available mixture input, thus the output is smaller than the input
                     'network' : 'unet', # Type of network architecture, either unet (our model) or unet_spectrogram (Jansson et al 2017 model)
+                    'downsampling' : 'naive', # Type of technique used for downsampling: 'naive' for skipping every odd sample, 'filter' for running samples through anti-aliasing filter before decimation.
                     'upsampling' : 'linear', # Type of technique used for upsampling the feature maps in a unet architecture, either 'linear' interpolation or 'learned' filling in of extra samples
-                    'task' : 'voice', # Type of separation task. 'voice' : Separate music into voice and accompaniment. 'multi_instrument': Separate music into guitar, bass, vocals, drums and other (Sisec)
-                    'augmentation' : True, # Random attenuation of source signals to improve generalisation performance (data augmentation)
+                    'task' : 'choir', # Type of separation task. 'voice' : Separate music into voice and accompaniment. 'multi_instrument': Separate music into guitar, bass, vocals, drums and other (Sisec)
+                    'augmentation' : False, # Random attenuation of source signals to improve generalisation performance (data augmentation)
                     'raw_audio_loss' : True, # Only active for unet_spectrogram network. True: L2 loss on audio. False: L1 loss on spectrogram magnitudes for training and validation and test loss
                     'worse_epochs' : 20, # Patience for early stoppping on validation set
+                    'initial_model_path': None,
+                    'fine_tuning_only': False,
+                    'chorales_path': 'synthesized_chorales',
+                    'score_informed': False,
+                    'test_batch_count': None,
+                    'score_type': 'one-hot', # one-hot | midi_pitch | midi_pitch_normalized | pitch_and_amplitude | pure_tone_synth
+                    'score_input_concat': False,
+                    'score_featuremap_concat': False,
+                    'score_per_source_concat': False,
+                    'multiple_source_training': False,
+                    'max_epochs': None,
+                    'add_random_score_samples': False, # If True, random samples are added with 'wrong' score to generate an all-zero source. Only works if score_informed is True and source_names includes all sources present in mix.
+                    'shuffle_dataset': True,
+                    'sources_to_mix': None,
                     }
-    experiment_id = np.random.randint(0,1000000)
+    experiment_id = str(np.random.randint(0,1000000))
+    data_base = "data"
+    dataset = "chorales_synth"
 
     # Set output sources
     if model_config["task"] == "multi_instrument":
         model_config["source_names"] = ["bass", "drums", "other", "vocals"]
     elif model_config["task"] == "voice":
         model_config["source_names"] = ["accompaniment", "vocals"]
+    elif model_config["task"] == "choir":
+        model_config["source_names"] = ["soprano", "alto", "tenor", "bass"]
     else:
         raise NotImplementedError
-    model_config["num_sources"] = len(model_config["source_names"])
     model_config["num_channels"] = 1 if model_config["mono_downmix"] else 2
+
+    model_config["data_path"] = os.path.join(data_base, dataset)
+
+    if model_config["multiple_source_training"]:
+        model_config["separator_source_names"] = ["source"]
+    else:
+        model_config["separator_source_names"] = model_config["source_names"]
+    model_config["num_sources"] = len(cast(list, model_config["separator_source_names"]))
+
+    if dataset.startswith('choralpractice'):
+        model_config["sources_to_mix"] = ["soprano", "alto", "tenor", "bass"]
 
 @config_ingredient.named_config
 def baseline():
@@ -158,4 +189,21 @@ def unet_spectrogram_l1():
         "duration" : 13,
         "num_initial_filters" : 16,
         "raw_audio_loss" : False
+    }
+
+@config_ingredient.named_config
+def filtered_resampling():
+    model_config = {
+        "downsampling" : "filter",
+        "upsampling" : "filter"
+    }
+
+@config_ingredient.named_config
+def debug():
+    model_config = {
+        "epoch_it": 2,
+        "cache_size": 16,
+        "num_workers": 1,
+        "test_batch_count": 2,
+        "max_epochs": 1
     }

@@ -1,22 +1,16 @@
 import tensorflow as tf
-from tensorflow.contrib.signal.python.ops import window_ops
+from tensorflow.contrib.signal import hann_window
 import numpy as np
 import os
 
+import Utils
 import Datasets
-import Models.UnetSpectrogramSeparator
-import Models.UnetAudioSeparator
 import functools
 
 def test(model_config, partition, model_folder, load_model):
     # Determine input and output shapes
     disc_input_shape = [model_config["batch_size"], model_config["num_frames"], 0]  # Shape of discriminator input
-    if model_config["network"] == "unet":
-        separator_class = Models.UnetAudioSeparator.UnetAudioSeparator(model_config)
-    elif model_config["network"] == "unet_spectrogram":
-        separator_class = Models.UnetSpectrogramSeparator.UnetSpectrogramSeparator(model_config)
-    else:
-        raise NotImplementedError
+    separator_class = Utils.create_separator(model_config)
 
     sep_input_shape, sep_output_shape = separator_class.get_padding(np.array(disc_input_shape))
     separator_func = separator_class.get_output
@@ -24,6 +18,8 @@ def test(model_config, partition, model_folder, load_model):
     # Creating the batch generators
     assert ((sep_input_shape[1] - sep_output_shape[1]) % 2 == 0)
     dataset = Datasets.get_dataset(model_config, sep_input_shape, sep_output_shape, partition=partition)
+    if model_config['test_batch_count'] is not None:
+        dataset = dataset.take(model_config['test_batch_count'])
     iterator = dataset.make_one_shot_iterator()
     batch = iterator.get_next()
 
@@ -31,7 +27,8 @@ def test(model_config, partition, model_folder, load_model):
 
     # BUILD MODELS
     # Separator
-    separator_sources = separator_func(batch["mix"], False, not model_config["raw_audio_loss"], reuse=False)  # Sources are output in order [acc, voice] for voice separation, [bass, drums, other, vocals] for multi-instrument separation
+    scores = {name: value for name, value in batch.items() if name.endswith('_score')}
+    separator_sources = separator_func(batch["mix"], False, not model_config["raw_audio_loss"], reuse=False, scores=scores)
 
     global_step = tf.get_variable('global_step', [], initializer=tf.constant_initializer(0), trainable=False, dtype=tf.int64)
 
@@ -55,13 +52,13 @@ def test(model_config, partition, model_folder, load_model):
     batch_num = 1
 
     # Supervised objective: MSE for raw audio, MAE for magnitude space (Jansson U-Net)
-    separator_loss = 0
-    for key in model_config["source_names"]:
+    separator_loss = 0.0
+    for key in model_config["separator_source_names"]:
         real_source = batch[key]
         sep_source = separator_sources[key]
 
         if model_config["network"] == "unet_spectrogram" and not model_config["raw_audio_loss"]:
-            window = functools.partial(window_ops.hann_window, periodic=True)
+            window = functools.partial(hann_window, periodic=True)
             stfts = tf.contrib.signal.stft(tf.squeeze(real_source, 2), frame_length=1024, frame_step=768,
                                            fft_length=1024, window_fn=window)
             real_mag = tf.abs(stfts)
