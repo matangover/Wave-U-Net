@@ -37,7 +37,7 @@ def random_amplify(sample):
 
 def crop_sample(sample, crop_frames):
     for key, val in list(sample.items()):
-        if key != "mix" and crop_frames > 0:
+        if key != "mix" and crop_frames > 0 and not key.endswith('_score'):
             sample[key] = val[crop_frames:-crop_frames,:]
     return sample
 
@@ -122,52 +122,22 @@ def crop(tensor, target_shape, match_feature_dim=True):
 
     return tensor[:,crop_start[1]:-crop_end[1],:]
 
-def spectrogramToAudioFile(magnitude, fftWindowSize, hopSize, phaseIterations=10, phase=None, length=None):
-    '''
-    Computes an audio signal from the given magnitude spectrogram, and optionally an initial phase.
-    Griffin-Lim is executed to recover/refine the given the phase from the magnitude spectrogram.
-    :param magnitude: Magnitudes to be converted to audio
-    :param fftWindowSize: Size of FFT window used to create magnitudes
-    :param hopSize: Hop size in frames used to create magnitudes
-    :param phaseIterations: Number of Griffin-Lim iterations to recover phase
-    :param phase: If given, starts ISTFT with this particular phase matrix
-    :param length: If given, audio signal is clipped/padded to this number of frames
-    :return:
-    '''
-    if phase is not None:
-        if phaseIterations > 0:
-            # Refine audio given initial phase with a number of iterations
-            return reconPhase(magnitude, fftWindowSize, hopSize, phaseIterations, phase, length)
-        # reconstructing the new complex matrix
-        stftMatrix = magnitude * np.exp(phase * 1j) # magnitude * e^(j*phase)
-        audio = librosa.istft(stftMatrix, hop_length=hopSize, length=length)
-    else:
-        audio = reconPhase(magnitude, fftWindowSize, hopSize, phaseIterations)
-    return audio
+def get_separator_shapes(model_config):
+    import Models.UnetSpectrogramSeparator
+    import Models.UnetAudioSeparator
 
-def reconPhase(magnitude, fftWindowSize, hopSize, phaseIterations=10, initPhase=None, length=None):
-    '''
-    Griffin-Lim algorithm for reconstructing the phase for a given magnitude spectrogram, optionally with a given
-    intial phase.
-    :param magnitude: Magnitudes to be converted to audio
-    :param fftWindowSize: Size of FFT window used to create magnitudes
-    :param hopSize: Hop size in frames used to create magnitudes
-    :param phaseIterations: Number of Griffin-Lim iterations to recover phase
-    :param initPhase: If given, starts reconstruction with this particular phase matrix
-    :param length: If given, audio signal is clipped/padded to this number of frames
-    :return:
-    '''
-    for i in range(phaseIterations):
-        if i == 0:
-            if initPhase is None:
-                reconstruction = np.random.random_sample(magnitude.shape) + 1j * (2 * np.pi * np.random.random_sample(magnitude.shape) - np.pi)
-            else:
-                reconstruction = np.exp(initPhase * 1j) # e^(j*phase), so that angle => phase
-        else:
-            reconstruction = librosa.stft(audio, fftWindowSize, hopSize)
-        spectrum = magnitude * np.exp(1j * np.angle(reconstruction))
-        if i == phaseIterations - 1:
-            audio = librosa.istft(spectrum, hopSize, length=length)
-        else:
-            audio = librosa.istft(spectrum, hopSize)
-    return audio
+    disc_input_shape = [model_config["batch_size"], model_config["num_frames"], 0]  # Shape of discriminator input
+    separator_class = create_separator(model_config)
+
+    return separator_class.get_padding(np.array(disc_input_shape))
+
+def create_separator(model_config):
+    import Models.UnetAudioSeparator
+    import Models.UnetSpectrogramSeparator
+    
+    if model_config["network"] == "unet":
+        return Models.UnetAudioSeparator.UnetAudioSeparator(model_config)
+    elif model_config["network"] == "unet_spectrogram":
+        return Models.UnetSpectrogramSeparator.UnetSpectrogramSeparator(model_config)
+    else:
+        raise NotImplementedError
